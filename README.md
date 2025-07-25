@@ -162,6 +162,73 @@ flowchart TD
     class V,W,X,Y infrastructure
 ```
 
+## Padrões e Boas Práticas
+
+### Padrões Arquiteturais
+
+1. **CQRS (Command Query Responsibility Segregation)**
+   - Separação clara entre operações de escrita (Command) e leitura (Query)
+   - Modelos de dados otimizados para cada tipo de operação
+   - Maior escalabilidade e performance para cada contexto
+
+2. **Event-Driven Architecture (EDA)**
+   - Comunicação assíncrona baseada em eventos
+   - Baixo acoplamento entre serviços
+   - Melhor resiliência e escalabilidade
+   - Facilita evolução e manutenção do sistema
+
+3. **Outbox Pattern**
+   - Garante consistência entre banco de dados e mensagens publicadas
+   - Transação atômica para salvar dados e eventos
+   - Publicação confiável de eventos
+   - Evita problemas de "dual writes"
+
+4. **Database per Service**
+   - PostgreSQL para o modelo de escrita (Command)
+   - MongoDB para o modelo de leitura (Query)
+   - Independência de dados entre serviços
+   - Otimização para diferentes padrões de acesso
+
+### Padrões de Domínio
+
+1. **Domain Events**
+   - Eventos representam mudanças significativas no domínio
+   - Carregam dados relevantes do contexto
+   - Permitem rastreabilidade de mudanças
+   - Facilitam integrações e extensões
+
+2. **Event Sourcing (Parcial)**
+   - Histórico de mudanças via eventos
+   - Possibilidade de reconstruir estado
+   - Auditoria natural das operações
+
+### Boas Práticas
+
+1. **Idempotência**
+   - Processamento seguro de eventos duplicados
+   - Verificação de eventos já processados
+   - Garantia de consistência
+
+2. **Eventual Consistency**
+   - Modelo de leitura atualizado de forma assíncrona
+   - Tolerância a latência em troca de escalabilidade
+   - Gestão de eventos pendentes
+
+3. **Observability**
+   - Logging estruturado
+   - Rastreamento de eventos
+   - Monitoramento de processamento
+
+4. **API First**
+   - Endpoints REST bem definidos
+   - DTOs específicos para cada operação
+
+5. **DevOps Ready**
+   - Containerização com Docker
+   - Configuração via variáveis de ambiente
+   - Scripts de automação
+   - Ambiente local completo via Docker Compose
+
 ## Como rodar localmente
 
 ### Opção 1: Docker Compose (Recomendado para testes)
