@@ -1,0 +1,173 @@
+version: '3.8'
+
+services:
+  broker:
+    image: apache/kafka:latest
+    hostname: broker
+    container_name: broker
+    networks:
+      - command_cqrs
+    ports:
+      - 9092:9092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@broker:29093
+      KAFKA_LISTENERS: PLAINTEXT://broker:29092,CONTROLLER://broker:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    networks:
+      - command_cqrs
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: kafka-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: broker:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: ""
+
+  postgres-command:
+    image: postgres:15
+    container_name: orders-postgres
+    networks:
+      - command_cqrs
+    restart: always
+    environment:
+      POSTGRES_DB: orders_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  mongo:
+    image: mongo:6.0
+    container_name: orders-mongodb
+    networks:
+      - command_cqrs
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: user
+      MONGO_INITDB_ROOT_PASSWORD: pass
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  mongo-express:
+    image: mongo-express:latest
+    networks:
+      - command_cqrs
+    ports:
+      - 8083:8081
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongo
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_MONGODB_ADMINUSERNAME: "user"
+      ME_CONFIG_MONGODB_ADMINPASSWORD: "pass"
+      ME_CONFIG_SITE_BASEURL: "/"
+      ME_CONFIG_SITE_PORT: 8081
+
+
+  localstack:
+    image: localstack/localstack:3.0
+    container_name: localstack
+    networks:
+      - command_cqrs
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=sqs,events
+      - DEBUG=1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  awscli-init:
+    image: amazon/aws-cli
+    container_name: awscli-init
+    networks:
+      - command_cqrs
+    depends_on:
+      - localstack
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint: ["/bin/bash", "-c"]
+    command: >
+      '
+      echo "Iniciando criação de infraestrutura..." &&
+      sleep 5 &&
+      aws sqs create-queue --queue-name start-events-processing --endpoint-url=http://localstack:4566 &&
+      aws events put-rule --name start-events-processing-rule \
+        --schedule-expression "rate(1 minute)" \
+        --endpoint-url=http://localstack:4566 &&
+      aws events put-targets \
+        --rule start-events-processing-rule \
+        --targets Id=1,Arn="arn:aws:sqs:us-east-1:000000000000:start-events-processing" \
+        --endpoint-url=http://localstack:4566 &&
+      
+      aws sqs create-queue --queue-name outbox-dispatch-events --endpoint-url=http://localstack:4566 &&
+      echo "Fila, event e regra criadas com sucesso"
+      '
+
+  cqrs-command:
+    build:
+      context: ./cqrs-command
+    depends_on:
+      - broker
+      - postgres-command
+      - localstack
+    environment:
+      SPRING_PROFILES_ACTIVE: default
+      KAFKA_BOOTSTRAP_SERVERS: broker:29092
+      POSTGRES_URL: jdbc:postgresql://postgres-command:5432/orders_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      SQS_ENDPOINT: http://localstack:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    ports:
+      - "8081:8081"
+    networks:
+      - command_cqrs
+
+  cqrs-query:
+    build:
+      context: ./cqrs-query
+    depends_on:
+      - broker
+      - mongo
+    environment:
+      SPRING_PROFILES_ACTIVE: default
+      KAFKA_BOOTSTRAP_SERVERS: broker:29092
+      MONGODB_URI: mongodb://user:pass@mongo:27017/orders_query_db?authSource=admin
+    ports:
+      - "8082:8082"
+    networks:
+      - command_cqrs
+
+volumes:
+  postgres-data:
+  mongo-data:
+
+networks:
+  command_cqrs:
+    driver: bridge

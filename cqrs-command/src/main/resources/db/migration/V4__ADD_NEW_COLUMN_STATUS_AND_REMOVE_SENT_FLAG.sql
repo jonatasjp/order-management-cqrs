@@ -1,0 +1,3 @@
+ALTER TABLE outbox_events ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'CREATED';
+
+ALTER TABLE outbox_events DROP COLUMN sent;

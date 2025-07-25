@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX idx_orders_correlation_id ON orders (correlation_id);

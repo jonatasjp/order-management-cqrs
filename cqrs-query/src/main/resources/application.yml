@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: cqrs-query
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://user:pass@localhost:27017/orders_query_db?authSource=admin}
+      database: orders_query_db
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: query-service-group
+      auto-offset-reset: earliest
+
+kafka:
+  topics:
+    order-created: order.created.events
+    order-confirmed: order.confirmed.events
+    order-canceled: order.canceled.events
+    item-added: order.item.added.events
+    item-removed: order.item.removed.events
+
+server:
+  port: 8082

@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: cqrs-command
+  datasource:
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/orders_db}
+    username: ${POSTGRES_USER:user}
+    password: ${POSTGRES_PASSWORD:pass}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+cloud:
+  aws:
+    endpoint: ${SQS_ENDPOINT:http://localhost:4566}
+    region:
+      static: ${AWS_REGION:us-east-1}
+    credentials:
+      accessKey: ${AWS_ACCESS_KEY_ID:test}
+      secretKey: ${AWS_SECRET_ACCESS_KEY:test}
+    stack:
+      auto: false
+
+kafka:
+  topics:
+    order-created: order.created.events
+    order-confirmed: order.confirmed.events
+    order-canceled: order.canceled.events
+    item-added: order.item.added.events
+    item-removed: order.item.removed.events
+
+queues:
+  startEventsProcessing: start-events-processing
+  outboxDispatchEvents: outbox-dispatch-events
+
+server:
+  port: 8081
