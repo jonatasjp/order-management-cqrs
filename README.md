@@ -1,4 +1,4 @@
-# Simple CQRS - Arquitetura Orientada a Eventos
+# CQRS - Arquitetura Orientada a Eventos
 
 Este projeto demonstra uma arquitetura moderna baseada em CQRS (Command Query Responsibility Segregation) e Event-Driven, utilizando Spring Boot, Kafka, SQS, PostgreSQL, MongoDB e Docker Compose.
 

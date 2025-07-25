@@ -12,7 +12,7 @@
 	<artifactId>cqrs-command</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>cqrs-command</name>
-	<description>Spring boot project for simple crqs</description>
+	<description>order management system CQRS command</description>
 	<url/>
 	<licenses>
 		<license/>
