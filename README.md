@@ -209,15 +209,13 @@ flowchart TD
    - Verificação de eventos já processados
    - Garantia de consistência
 
-2. **Eventual Consistency**
+2. **Consistência Eventual**
    - Modelo de leitura atualizado de forma assíncrona
    - Tolerância a latência em troca de escalabilidade
    - Gestão de eventos pendentes
 
-3. **Observability**
+3. **Observabilidade**
    - Logging estruturado
-   - Rastreamento de eventos
-   - Monitoramento de processamento
 
 4. **API First**
    - Endpoints REST bem definidos
