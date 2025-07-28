@@ -37,4 +37,35 @@ public class Order {
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items;
 
+    public void confirm() {
+        validateCanConfirm();
+        this.status = OrderStatus.CONFIRMED;
+    }
+
+    public void cancel() {
+        validateCanCancel();
+        this.status = OrderStatus.CANCELED;
+    }
+
+    private void validateCanCancel() {
+        if (isCanceled()) throw new IllegalStateException("Order is already canceled.");
+    }
+
+    private void validateCanConfirm() {
+        if (isConfirmed()) throw new IllegalStateException("Order is already confirmed.");
+        if (hasNoItems()) throw new IllegalStateException("Cannot confirm an order with no items.");
+    }
+
+    public boolean isConfirmed() {
+        return status == OrderStatus.CONFIRMED;
+    }
+
+    public boolean isCanceled() {
+        return status == OrderStatus.CANCELED;
+    }
+
+    private boolean hasNoItems() {
+        return items == null || items.isEmpty();
+    }
+
 }

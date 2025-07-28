@@ -26,7 +26,7 @@ public class CreateOrderService {
         OrderDocument document = orderServiceHelper.buildOrderDocument(event);
 
         if (processedEventsRepository.existsById(event.getEventId())) {
-            log.warn("[ORDER_CREATED_EVENT][WARNING] - event already processed. correlationId: {} eventId: {}",
+            log.warn("[ORDER_CREATED_EVENT][WARNING] - event already processed. CORRELATION_ID: {} eventId: {}",
                     event.getCorrelationId(), event.getEventId());
             return orderRepository.findById(document.getCorrelationId()).orElse(document);
         }
@@ -34,7 +34,7 @@ public class CreateOrderService {
         return orderRepository
                 .findById(document.getCorrelationId())
                 .orElseGet(() -> {
-                    log.info("[ORDER_CREATED_EVENT] Create new order to correlationId: {}", document.getCorrelationId());
+                    log.info("[ORDER_CREATED_EVENT] Create new order to CORRELATION_ID: {}", document.getCorrelationId());
                     OrderDocument orderSaved = orderRepository.save(document);
                     processedEventsRepository.save(orderServiceHelper.buildProcessedEventDocument(event.getEventId(), event.getCorrelationId(), ORDER_CREATED.name()));
                     return orderSaved;

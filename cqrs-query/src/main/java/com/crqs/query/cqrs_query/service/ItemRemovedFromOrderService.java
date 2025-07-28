@@ -34,14 +34,14 @@ public class ItemRemovedFromOrderService {
         OrderDocument document = buildPartialOrderDocument(event);
 
         if (processedEventsRepository.existsById(eventId)) {
-            log.warn("[ITEM_REMOVED_FROM_ORDER_EVENT][WARNING] - event already processed. correlationId: {}, eventId: {}", correlationId, eventId);
+            log.warn("[ITEM_REMOVED_FROM_ORDER_EVENT][WARNING] - event already processed. CORRELATION_ID: {}, eventId: {}", correlationId, eventId);
             return orderRepository.findById(correlationId).orElse(document);
         }
 
         Optional<OrderDocument> orderDocumentSavedOptional = orderRepository.findById(correlationId);
         if (orderDocumentSavedOptional.isEmpty()) {
             orderServiceHelper.savePendingEventIfNotExists(eventId, correlationId, ITEM_REMOVED_FROM_ORDER.name(), event);
-            log.info("[ITEM_REMOVED_FROM_ORDER_EVENT][WARNING] - OrderDocument not found, save event as pending. correlationId: {}", correlationId);
+            log.info("[ITEM_REMOVED_FROM_ORDER_EVENT][WARNING] - OrderDocument not found, save event as pending. CORRELATION_ID: {}", correlationId);
             return document;
         }
 
@@ -59,7 +59,7 @@ public class ItemRemovedFromOrderService {
         processedEventsRepository.save(orderServiceHelper.buildProcessedEventDocument(eventId, correlationId, ITEM_REMOVED_FROM_ORDER.name()));
         orderServiceHelper.deletePendingOrderEventById(eventId);
 
-        log.info("[ITEM_REMOVED_FROM_ORDER_EVENT] Item removed from order. correlationId: {}, productId: {}, eventId: {}", correlationId, event.getProductId(), eventId);
+        log.info("[ITEM_REMOVED_FROM_ORDER_EVENT] Item removed from order. CORRELATION_ID: {}, productId: {}, eventId: {}", correlationId, event.getProductId(), eventId);
         return order;
     }
 

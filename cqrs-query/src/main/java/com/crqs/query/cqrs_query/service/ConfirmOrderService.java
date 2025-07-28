@@ -37,7 +37,7 @@ public class ConfirmOrderService {
                 .build();
 
         if (processedEventsRepository.existsById(eventId)) {
-            log.warn("[ORDER_CONFIRMED_EVENT][WARNING] - event already processed. correlationId: {} eventId: {}",
+            log.warn("[ORDER_CONFIRMED_EVENT][WARNING] - event already processed. CORRELATION_ID: {} eventId: {}",
                     correlationId, eventId);
             return orderRepository.findById(correlationId).orElse(document);
         }
@@ -45,7 +45,7 @@ public class ConfirmOrderService {
         Optional<OrderDocument> orderDocumentSavedOptional = orderRepository.findById(correlationId);
         if (orderDocumentSavedOptional.isEmpty()) {
             orderServiceHelper.savePendingEventIfNotExists(eventId, correlationId, ORDER_CONFIRMED.name(), event);
-            log.info("[ORDER_CONFIRMED_EVENT][WARNING] - OrderDocument not found, save event as pending. correlationId: {}", correlationId);
+            log.info("[ORDER_CONFIRMED_EVENT][WARNING] - OrderDocument not found, save event as pending. CORRELATION_ID: {}", correlationId);
             return document;
         }
 

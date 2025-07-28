@@ -46,15 +46,10 @@ public class OrderService {
 
             Order createdOrder = orderRepository.save(order);
 
-            log.debug("[CREATE_ORDER][SAVE][SUCCESS][CORRELATION_ID: {}] - Order saved in database with ID: {}. Status: {}",
-                    order.getCorrelationId(), createdOrder.getId(), createdOrder.getStatus());
-
             CreatedOrderEvent createdOrderEvent = toCreatedOrderEvent(createdOrder);
             outboxEventService.saveOutboxEvent(buildOutboxEvent(createdOrder, createdOrderEvent, EnumEventTypes.ORDER_CREATED));
-            log.debug("[CREATE_ORDER][SAVE_OUTBOX][SUCCESS][CorrelationId: {}] - Created Event 'CreatedOrderEvent' to order ID: {}",
-                    order.getCorrelationId(), createdOrder.getId());
 
-            log.info("[CREATE_ORDER][FINISH][SUCCESS][CorrelationId: {}] finish order Creation process ID: {}",
+            log.info("[CREATE_ORDER][FINISH][SUCCESS][CORRELATION_ID: {}] finish order Creation process ID: {}",
                     order.getCorrelationId(), createdOrder.getId());
 
             return toOrderResponse(createdOrder);
@@ -74,14 +69,7 @@ public class OrderService {
             Order order = orderRepository.findByCorrelationId(correlationId)
                     .orElseThrow(() -> new IllegalArgumentException("Order not found: " + correlationId));
 
-            if (order.getStatus() == OrderStatus.CONFIRMED) {
-                throw new IllegalStateException("Order is already confirmed.");
-            }
-
-            if (order.getItems() == null || order.getItems().isEmpty()) {
-                log.warn("[CONFIRM_ORDER][VALIDATION_FAIL][CORRELATION_ID: {}] Attempted to confirm order without items", correlationId);
-                throw new InvalidOrderOperationException("Cannot confirm an order with no items.", correlationId);
-            }
+            order.confirm();
 
             BigDecimal totalOrderAmount = order.getItems().stream()
                     .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
@@ -122,7 +110,7 @@ public class OrderService {
             Order order = orderRepository.findByCorrelationId(correlationId)
                     .orElseThrow(() -> new IllegalArgumentException("Order not found: " + correlationId));
 
-            order.setStatus(OrderStatus.CANCELED);
+            order.cancel();
             order = orderRepository.save(order);
 
             log.info("[CANCEL_ORDER][SAVE][SUCCESS][CORRELATION_ID: {}] Order canceled. ID: {}, Status: {}",
@@ -196,10 +184,10 @@ public class OrderService {
             Order order = orderRepository.findByCorrelationId(correlationId)
                     .orElseThrow(() -> new IllegalArgumentException("Order not found: " + correlationId));
 
-            if (order.getStatus() == OrderStatus.CONFIRMED || order.getStatus() == OrderStatus.CANCELED) {
+            if (order.isConfirmed() || order.isCanceled()) {
                 throw new IllegalStateException("Cannot remove items from an order that is already confirmed or canceled.");
             }
-
+            
             Item item = itemRepository.findById(productId)
                     .orElseThrow(() -> new ItemNotFoundException(productId));
 

@@ -36,14 +36,14 @@ public class CanceledOrderService {
                 .build();
 
         if (processedEventsRepository.existsById(eventId)) {
-            log.warn("[ORDER_CANCELED_EVENT][WARNING] - event already processed. correlationId: {}, eventId: {}", correlationId, eventId);
+            log.warn("[ORDER_CANCELED_EVENT][WARNING] - event already processed. CORRELATION_ID: {}, eventId: {}", correlationId, eventId);
             return orderRepository.findById(correlationId).orElse(document);
         }
 
         Optional<OrderDocument> orderDocumentSavedOptional = orderRepository.findById(correlationId);
         if (orderDocumentSavedOptional.isEmpty()) {
             orderServiceHelper.savePendingEventIfNotExists(eventId, correlationId, ORDER_CANCELED.name(), event);
-            log.info("[ORDER_CANCELED_EVENT][WARNING] - OrderDocument not found, save event as pending. correlationId: {}", correlationId);
+            log.info("[ORDER_CANCELED_EVENT][WARNING] - OrderDocument not found, save event as pending. CORRELATION_ID: {}", correlationId);
             return document;
         }
 
