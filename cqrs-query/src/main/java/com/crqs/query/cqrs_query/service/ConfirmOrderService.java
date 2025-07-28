@@ -4,6 +4,7 @@ import com.crqs.query.cqrs_query.domain.document.OrderDocument;
 import com.crqs.query.cqrs_query.domain.dto.events.ConfirmedOrderEvent;
 import com.crqs.query.cqrs_query.repository.OrderRepository;
 import com.crqs.query.cqrs_query.repository.ProcessedEventsRepository;
+import com.crqs.query.cqrs_query.util.LoggingUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,15 +38,14 @@ public class ConfirmOrderService {
                 .build();
 
         if (processedEventsRepository.existsById(eventId)) {
-            log.warn("[ORDER_CONFIRMED_EVENT][WARNING] - event already processed. CORRELATION_ID: {} eventId: {}",
-                    correlationId, eventId);
+            LoggingUtil.logEventAlreadyProcessed(ORDER_CONFIRMED.name(), correlationId, eventId);
             return orderRepository.findById(correlationId).orElse(document);
         }
 
         Optional<OrderDocument> orderDocumentSavedOptional = orderRepository.findById(correlationId);
         if (orderDocumentSavedOptional.isEmpty()) {
             orderServiceHelper.savePendingEventIfNotExists(eventId, correlationId, ORDER_CONFIRMED.name(), event);
-            log.info("[ORDER_CONFIRMED_EVENT][WARNING] - OrderDocument not found, save event as pending. CORRELATION_ID: {}", correlationId);
+            LoggingUtil.logEventPending(ORDER_CONFIRMED.name(), correlationId);
             return document;
         }
 

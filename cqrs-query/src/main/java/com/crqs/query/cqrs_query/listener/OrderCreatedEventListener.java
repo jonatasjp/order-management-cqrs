@@ -3,6 +3,7 @@ package com.crqs.query.cqrs_query.listener;
 import com.crqs.query.cqrs_query.domain.document.OrderDocument;
 import com.crqs.query.cqrs_query.domain.dto.events.CreatedOrderEvent;
 import com.crqs.query.cqrs_query.service.CreateOrderService;
+import com.crqs.query.cqrs_query.util.LoggingUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
@@ -21,16 +22,24 @@ public class OrderCreatedEventListener {
 
     @KafkaListener(topics = "${kafka.topics.order-created}", groupId = "${spring.kafka.consumer.group-id}")
     public void listenOrderCreated(String payload, Acknowledgment ack) throws JsonProcessingException {
+        long startTime = System.currentTimeMillis();
+        
         try {
             CreatedOrderEvent event = objectMapper.readValue(payload, CreatedOrderEvent.class);
-            log.debug("[ORDER_CREATED_EVENT] Received: {}", event);
+            String correlationId = event.getCorrelationId();
+            
+            LoggingUtil.logEventReceived("ORDER_CREATED", correlationId, event);
 
             OrderDocument document = orderService.createOrderFromEvent(event);
-            log.info("[ORDER_CREATED_EVENT] Processed: {} OrderCreated: {}", event, document);
+            LoggingUtil.logEventProcessed("ORDER_CREATED", correlationId, document);
+            LoggingUtil.logPerformance("ORDER_CREATED_EVENT_PROCESSING", correlationId, startTime);
+            
             ack.acknowledge();
         } catch (Exception e) {
-            log.error("[ORDER_CREATED_EVENT][ERROR] error to proccess this event {}", payload, e);
+            log.error("[ORDER_CREATED_EVENT][ERROR] error to process this event {}", payload, e);
             throw e;
+        } finally {
+            LoggingUtil.clearContext();
         }
     }
 

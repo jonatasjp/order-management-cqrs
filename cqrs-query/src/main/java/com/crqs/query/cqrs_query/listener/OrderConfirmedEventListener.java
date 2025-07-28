@@ -3,6 +3,7 @@ package com.crqs.query.cqrs_query.listener;
 import com.crqs.query.cqrs_query.domain.document.OrderDocument;
 import com.crqs.query.cqrs_query.domain.dto.events.ConfirmedOrderEvent;
 import com.crqs.query.cqrs_query.service.ConfirmOrderService;
+import com.crqs.query.cqrs_query.util.LoggingUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
@@ -21,16 +22,24 @@ public class OrderConfirmedEventListener {
 
     @KafkaListener(topics = "${kafka.topics.order-confirmed}", groupId = "${spring.kafka.consumer.group-id}")
     public void listenOrderConfirmed(String payload, Acknowledgment ack) throws JsonProcessingException {
+        long startTime = System.currentTimeMillis();
+        
         try {
             ConfirmedOrderEvent event = objectMapper.readValue(payload, ConfirmedOrderEvent.class);
-            log.debug("[ORDER_CONFIRMED_EVENT] Received: {}", payload);
+            String correlationId = event.getCorrelationId();
+            
+            LoggingUtil.logEventReceived("ORDER_CONFIRMED", correlationId, event);
 
             OrderDocument orderDocument = orderService.confirmOrderFromEvent(event);
-            log.info("[ORDER_CONFIRMED_EVENT] Processed: {} OrderConfirmed: {}", event, orderDocument);
+            LoggingUtil.logEventProcessed("ORDER_CONFIRMED", correlationId, orderDocument);
+            LoggingUtil.logPerformance("ORDER_CONFIRMED_EVENT_PROCESSING", correlationId, startTime);
+            
             ack.acknowledge();
         } catch (Exception e) {
-            log.error("[ORDER_CONFIRMED_EVENT][ERROR] error to proccess this event {}", payload, e);
+            log.error("[ORDER_CONFIRMED_EVENT][ERROR] error to process this event {}", payload, e);
             throw e;
+        } finally {
+            LoggingUtil.clearContext();
         }
     }
 

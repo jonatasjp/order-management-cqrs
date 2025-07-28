@@ -4,6 +4,7 @@ import com.crqs.query.cqrs_query.domain.document.OrderDocument;
 import com.crqs.query.cqrs_query.domain.dto.events.CanceledOrderEvent;
 import com.crqs.query.cqrs_query.repository.OrderRepository;
 import com.crqs.query.cqrs_query.repository.ProcessedEventsRepository;
+import com.crqs.query.cqrs_query.util.LoggingUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,14 +37,14 @@ public class CanceledOrderService {
                 .build();
 
         if (processedEventsRepository.existsById(eventId)) {
-            log.warn("[ORDER_CANCELED_EVENT][WARNING] - event already processed. CORRELATION_ID: {}, eventId: {}", correlationId, eventId);
+            LoggingUtil.logEventAlreadyProcessed(ORDER_CANCELED.name(), correlationId, eventId);
             return orderRepository.findById(correlationId).orElse(document);
         }
 
         Optional<OrderDocument> orderDocumentSavedOptional = orderRepository.findById(correlationId);
         if (orderDocumentSavedOptional.isEmpty()) {
             orderServiceHelper.savePendingEventIfNotExists(eventId, correlationId, ORDER_CANCELED.name(), event);
-            log.info("[ORDER_CANCELED_EVENT][WARNING] - OrderDocument not found, save event as pending. CORRELATION_ID: {}", correlationId);
+            LoggingUtil.logEventPending(ORDER_CANCELED.name(), correlationId);
             return document;
         }
 

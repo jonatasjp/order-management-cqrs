@@ -277,7 +277,7 @@ docker-compose up --build
 
 ### Criar pedido
 ```bash
-curl -X POST http://localhost:8081/orders -H 'Content-Type: application/json' -d '{"customerId":"cliente1"}'
+curl -X POST http://localhost:8081/orders -H 'Content-Type: application/json' -d '{"correlationId":"550e8400-e29b-41d4-a716-446655440000","customerId":"cliente1"}'
 ```
 
 ### Adicionar item

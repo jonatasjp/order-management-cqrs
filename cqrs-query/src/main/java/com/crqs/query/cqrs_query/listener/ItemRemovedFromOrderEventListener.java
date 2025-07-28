@@ -2,6 +2,7 @@ package com.crqs.query.cqrs_query.listener;
 
 import com.crqs.query.cqrs_query.domain.dto.events.ItemRemovedFromOrderEvent;
 import com.crqs.query.cqrs_query.service.ItemRemovedFromOrderService;
+import com.crqs.query.cqrs_query.util.LoggingUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
@@ -20,15 +21,24 @@ public class ItemRemovedFromOrderEventListener {
 
     @KafkaListener(topics = "${kafka.topics.item-removed}", groupId = "${spring.kafka.consumer.group-id}")
     public void listenItemRemovedFromOrder(String payload, Acknowledgment ack) throws JsonProcessingException {
+        long startTime = System.currentTimeMillis();
+        
         try {
             ItemRemovedFromOrderEvent event = objectMapper.readValue(payload, ItemRemovedFromOrderEvent.class);
-            log.debug("[ITEM_REMOVED_FROM_ORDER_EVENT] Recebido: {}", event);
+            String correlationId = event.getCorrelationId();
+            
+            LoggingUtil.logEventReceived("ITEM_REMOVED_FROM_ORDER", correlationId, event);
+
             var order = itemRemovedFromOrderService.removeItemFromOrderFromEvent(event);
-            log.info("[ITEM_REMOVED_FROM_ORDER_EVENT] Processed: {} order: {}", event, order);
+            LoggingUtil.logEventProcessed("ITEM_REMOVED_FROM_ORDER", correlationId, order);
+            LoggingUtil.logPerformance("ITEM_REMOVED_FROM_ORDER_EVENT_PROCESSING", correlationId, startTime);
+            
             ack.acknowledge();
         } catch (Exception e) {
             log.error("[ITEM_REMOVED_FROM_ORDER_EVENT][ERROR] error to process event {}", payload, e);
             throw e;
+        } finally {
+            LoggingUtil.clearContext();
         }
     }
 

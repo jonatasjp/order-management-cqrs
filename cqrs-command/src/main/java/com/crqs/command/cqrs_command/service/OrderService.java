@@ -17,6 +17,7 @@ import com.crqs.command.cqrs_command.repository.OrderItemRepository;
 import com.crqs.command.cqrs_command.repository.OrderRepository;
 import com.crqs.command.cqrs_command.util.DateUtil;
 import com.crqs.command.cqrs_command.util.JsonUtil;
+import com.crqs.command.cqrs_command.util.LoggingUtil;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,36 +40,47 @@ public class OrderService {
 
     @Transactional
     public OrderResponse createOrder(OrderRequest orderRequest) throws CreateOrderException {
+        long startTime = System.currentTimeMillis();
         Order order = orderRequest.toOrder();
+        String correlationId = order.getCorrelationId().toString();
+        
+        LoggingUtil.logOperationStart("CREATE_ORDER", correlationId, orderRequest);
+        
         try {
-
-            log.debug("[CREATE_ORDER][INIT][CORRELATION_ID: {}] OrderRequest: {}", order.getCorrelationId(), orderRequest.toString());
-
+            LoggingUtil.logDatabaseOperation("SAVE", correlationId, "Order", "NEW");
             Order createdOrder = orderRepository.save(order);
 
             CreatedOrderEvent createdOrderEvent = toCreatedOrderEvent(createdOrder);
+            LoggingUtil.logEventSaved("ORDER_CREATED", correlationId);
             outboxEventService.saveOutboxEvent(buildOutboxEvent(createdOrder, createdOrderEvent, EnumEventTypes.ORDER_CREATED));
 
-            log.info("[CREATE_ORDER][FINISH][SUCCESS][CORRELATION_ID: {}] finish order Creation process ID: {}",
-                    order.getCorrelationId(), createdOrder.getId());
-
-            return toOrderResponse(createdOrder);
+            OrderResponse response = toOrderResponse(createdOrder);
+            LoggingUtil.logOperationSuccess("CREATE_ORDER", correlationId, response);
+            LoggingUtil.logPerformance("CREATE_ORDER", correlationId, startTime);
+            
+            return response;
 
         } catch (Exception e) {
-            log.error("[CREATE_ORDER][ERROR][CorrelationId: {}] Error creating order for Customer ID: {}. Cause: {}",
-                    order.getCorrelationId(), orderRequest.customerId(), e.getMessage(), e);
+            LoggingUtil.logOperationError("CREATE_ORDER", correlationId, "Failed to create order", e);
             throw new CreateOrderException(order.getCorrelationId(), e);
+        } finally {
+            LoggingUtil.clearContext();
         }
     }
 
     @Transactional
     public void confirmOrder(UUID correlationId) throws ConfirmOrderException {
+        long startTime = System.currentTimeMillis();
+        String correlationIdStr = correlationId.toString();
+        
+        LoggingUtil.logOperationStart("CONFIRM_ORDER", correlationIdStr, correlationId);
+        
         try {
-            log.info("[CONFIRM_ORDER][INIT][CORRELATION_ID: {}] Start order confirmation", correlationId);
-
+            LoggingUtil.logDatabaseOperation("FIND", correlationIdStr, "Order", correlationId);
             Order order = orderRepository.findByCorrelationId(correlationId)
                     .orElseThrow(() -> new IllegalArgumentException("Order not found: " + correlationId));
 
+            LoggingUtil.logBusinessValidation("CONFIRM_ORDER", correlationIdStr, "Validating order can be confirmed");
             order.confirm();
 
             BigDecimal totalOrderAmount = order.getItems().stream()
@@ -77,72 +89,91 @@ public class OrderService {
 
             order.setStatus(OrderStatus.CONFIRMED);
             order.setTotalOrderAmount(totalOrderAmount);
+            
+            LoggingUtil.logDatabaseOperation("UPDATE", correlationIdStr, "Order", order.getId());
             order = orderRepository.save(order);
 
-            log.info("[CONFIRM_ORDER][SAVE][SUCCESS][CORRELATION_ID: {}] Order confirmed. ID: {}, Status: {}",
-                    correlationId, order.getId(), order.getStatus());
+            LoggingUtil.logOperationSuccess("CONFIRM_ORDER", correlationIdStr, "Order confirmed with total: " + totalOrderAmount);
 
             ConfirmedOrderEvent event = toConfirmedOrderEvent(order);
+            LoggingUtil.logEventSaved("ORDER_CONFIRMED", correlationIdStr);
             outboxEventService.saveOutboxEvent(buildOutboxEvent(order, event, EnumEventTypes.ORDER_CONFIRMED));
 
-            log.info("[CONFIRM_ORDER][SAVE_OUTBOX][SUCCESS][CORRELATION_ID: {}] Event 'ConfirmedOrderEvent' saved", correlationId);
+            LoggingUtil.logPerformance("CONFIRM_ORDER", correlationIdStr, startTime);
 
         } catch (InvalidOrderOperationException e) {
-            log.error("[CONFIRM_ORDER][ERROR][CORRELATION_ID: {}] Attempted to confirm order without items", correlationId, e);
+            LoggingUtil.logBusinessValidation("CONFIRM_ORDER", correlationIdStr, "Cannot confirm order without items");
             throw e;
         } catch (IllegalArgumentException e) {
-            log.error("[CONFIRM_ORDER][ERROR][CORRELATION_ID: {}] Order not found. Cause: {}", correlationId, e.getMessage(), e);
+            LoggingUtil.logOperationError("CONFIRM_ORDER", correlationIdStr, "Order not found", e);
             throw e;
         } catch (IllegalStateException e) {
-            log.error("[CONFIRM_ORDER][ERROR][CORRELATION_ID: {}] Order is already confirmed. Cause: {}", correlationId, e.getMessage(), e);
+            LoggingUtil.logBusinessValidation("CONFIRM_ORDER", correlationIdStr, "Order is already confirmed");
             throw e;
         } catch (Exception e) {
-            log.error("[CONFIRM_ORDER][ERROR][CORRELATION_ID: {}] Failed to confirm order. Cause: {}", correlationId, e.getMessage(), e);
+            LoggingUtil.logOperationError("CONFIRM_ORDER", correlationIdStr, "Failed to confirm order", e);
             throw new ConfirmOrderException(correlationId, e);
+        } finally {
+            LoggingUtil.clearContext();
         }
     }
 
     @Transactional
     public void cancelOrder(UUID correlationId, String reason) throws CancelOrderException {
+        long startTime = System.currentTimeMillis();
+        String correlationIdStr = correlationId.toString();
+        
+        LoggingUtil.logOperationStart("CANCEL_ORDER", correlationIdStr, correlationId, reason);
+        
         try {
-            log.debug("[CANCEL_ORDER][INIT][CORRELATION_ID: {}] Start order cancellation", correlationId);
-
+            LoggingUtil.logDatabaseOperation("FIND", correlationIdStr, "Order", correlationId);
             Order order = orderRepository.findByCorrelationId(correlationId)
                     .orElseThrow(() -> new IllegalArgumentException("Order not found: " + correlationId));
 
+            LoggingUtil.logBusinessValidation("CANCEL_ORDER", correlationIdStr, "Validating order can be canceled");
             order.cancel();
+            
+            LoggingUtil.logDatabaseOperation("UPDATE", correlationIdStr, "Order", order.getId());
             order = orderRepository.save(order);
 
-            log.info("[CANCEL_ORDER][SAVE][SUCCESS][CORRELATION_ID: {}] Order canceled. ID: {}, Status: {}",
-                    correlationId, order.getId(), order.getStatus());
+            LoggingUtil.logOperationSuccess("CANCEL_ORDER", correlationIdStr, "Order canceled with reason: " + reason);
 
             CanceledOrderEvent event = toCanceledOrderEvent(reason, order);
+            LoggingUtil.logEventSaved("ORDER_CANCELED", correlationIdStr);
             outboxEventService.saveOutboxEvent(buildOutboxEvent(order, event, EnumEventTypes.ORDER_CANCELED));
 
-            log.info("[CANCEL_ORDER][SAVE_OUTBOX][SUCCESS][CORRELATION_ID: {}] Event 'CanceledOrderEvent' saved", correlationId);
+            LoggingUtil.logPerformance("CANCEL_ORDER", correlationIdStr, startTime);
 
         } catch (Exception e) {
-            log.error("[CANCEL_ORDER][ERROR][CORRELATION_ID: {}] Failed to cancel order. Reason: {}. Cause: {}",
-                    correlationId, reason, e.getMessage(), e);
+            LoggingUtil.logOperationError("CANCEL_ORDER", correlationIdStr, "Failed to cancel order", e);
             throw new CancelOrderException(correlationId, reason, e);
+        } finally {
+            LoggingUtil.clearContext();
         }
     }
 
     @Transactional
     public void addItemToOrder(UUID correlationId, AddItemRequest request) {
-        log.debug("[ADD_ITEM][INIT][CORRELATION_ID: {}] Request: {}", correlationId, request);
-
+        long startTime = System.currentTimeMillis();
+        String correlationIdStr = correlationId.toString();
+        
+        LoggingUtil.logOperationStart("ADD_ITEM", correlationIdStr, request);
+        
         try {
+            LoggingUtil.logDatabaseOperation("FIND", correlationIdStr, "Order", correlationId);
             Order order = orderRepository.findByCorrelationId(correlationId)
                     .orElseThrow(() -> new IllegalArgumentException("Order not found: " + correlationId));
 
+            LoggingUtil.logBusinessValidation("ADD_ITEM", correlationIdStr, "Validating order status for item addition");
             if (order.getStatus() == OrderStatus.CONFIRMED || order.getStatus() == OrderStatus.CANCELED) {
                 throw new IllegalStateException("Cannot add items to an order that is already confirmed or canceled.");
             }
 
+            LoggingUtil.logDatabaseOperation("FIND", correlationIdStr, "Item", request.getProductId());
             Item item = itemRepository.findById(request.getProductId())
                     .orElseThrow(() -> new ItemNotFoundException(request.getProductId()));
 
+            LoggingUtil.logDatabaseOperation("CHECK", correlationIdStr, "OrderItem", "EXISTS");
             boolean exists = orderItemRepository.existsByOrderIdAndItemId(order.getId(), item.getId());
             if (exists) {
                 throw new ItemAlreadyInOrderException(request.getProductId(), correlationId);
@@ -154,66 +185,78 @@ public class OrderService {
             orderItem.setQuantity(request.getQuantity());
             orderItem.setPrice(item.getPrice());
 
+            LoggingUtil.logDatabaseOperation("SAVE", correlationIdStr, "OrderItem", "NEW");
             orderItemRepository.save(orderItem);
 
-            log.info("[ADD_ITEM][SUCCESS][CORRELATION_ID: {}] Item ID {} added to order ID {}",
-                    correlationId, item.getId(), order.getId());
+            LoggingUtil.logOperationSuccess("ADD_ITEM", correlationIdStr, "Item " + item.getId() + " added to order " + order.getId());
 
             ItemAddedToOrderEvent event = toItemAddedToOrderEvent(correlationId, request, item);
+            LoggingUtil.logEventSaved("ITEM_ADDED_TO_ORDER", correlationIdStr);
             outboxEventService.saveOutboxEvent(buildOutboxEvent(order, event, EnumEventTypes.ITEM_ADDED_TO_ORDER));
 
-            log.info("[ADD_ITEM][EVENT][SUCCESS][CORRELATION_ID: {}] Event 'ItemAddedToOrder' saved", correlationId);
+            LoggingUtil.logPerformance("ADD_ITEM", correlationIdStr, startTime);
 
         } catch (IllegalArgumentException | ItemNotFoundException | ItemAlreadyInOrderException e) {
-            log.error("[ADD_ITEM][ERROR][CORRELATION_ID: {}] {}", correlationId, e.getMessage(), e);
+            LoggingUtil.logOperationError("ADD_ITEM", correlationIdStr, e.getMessage(), e);
             throw e;
         } catch (IllegalStateException e) {
-            log.error("[ADD_ITEM][ERROR][CORRELATION_ID: {}] {} Cannot add items to an order that is already confirmed or canceled", correlationId, e.getMessage(), e);
+            LoggingUtil.logBusinessValidation("ADD_ITEM", correlationIdStr, "Cannot add items to confirmed/canceled order");
             throw e;
         } catch (Exception e) {
-            log.error("[ADD_ITEM][ERROR][CORRELATION_ID: {}] Error adding item. Cause: {}", correlationId, e.getMessage(), e);
+            LoggingUtil.logOperationError("ADD_ITEM", correlationIdStr, "Error adding item", e);
             throw new AddItemToOrderException(correlationId, e);
+        } finally {
+            LoggingUtil.clearContext();
         }
     }
 
     @Transactional
     public void removeItemFromOrder(UUID correlationId, Long productId) {
-        log.debug("[REMOVE_ITEM][INIT][CORRELATION_ID: {}] Product ID: {}", correlationId, productId);
-
+        long startTime = System.currentTimeMillis();
+        String correlationIdStr = correlationId.toString();
+        
+        LoggingUtil.logOperationStart("REMOVE_ITEM", correlationIdStr, productId);
+        
         try {
+            LoggingUtil.logDatabaseOperation("FIND", correlationIdStr, "Order", correlationId);
             Order order = orderRepository.findByCorrelationId(correlationId)
                     .orElseThrow(() -> new IllegalArgumentException("Order not found: " + correlationId));
 
+            LoggingUtil.logBusinessValidation("REMOVE_ITEM", correlationIdStr, "Validating order status for item removal");
             if (order.isConfirmed() || order.isCanceled()) {
                 throw new IllegalStateException("Cannot remove items from an order that is already confirmed or canceled.");
             }
             
+            LoggingUtil.logDatabaseOperation("FIND", correlationIdStr, "Item", productId);
             Item item = itemRepository.findById(productId)
                     .orElseThrow(() -> new ItemNotFoundException(productId));
 
+            LoggingUtil.logDatabaseOperation("FIND", correlationIdStr, "OrderItem", "BY_ORDER_AND_ITEM");
             OrderItem orderItem = orderItemRepository.findByOrderAndItem(order, item)
                     .orElseThrow(() -> new ItemNotInOrderException(productId, correlationId));
 
+            LoggingUtil.logDatabaseOperation("DELETE", correlationIdStr, "OrderItem", orderItem.getId());
             orderItemRepository.delete(orderItem);
 
-            log.info("[REMOVE_ITEM][SUCCESS][CORRELATION_ID: {}] Item ID {} removed from order ID {}",
-                    correlationId, productId, order.getId());
+            LoggingUtil.logOperationSuccess("REMOVE_ITEM", correlationIdStr, "Item " + productId + " removed from order " + order.getId());
 
             ItemRemovedFromOrderEvent event = toItemRemovedFromOrderEvent(correlationId, productId);
-
+            LoggingUtil.logEventSaved("ITEM_REMOVED_FROM_ORDER", correlationIdStr);
             outboxEventService.saveOutboxEvent(buildOutboxEvent(order, event, EnumEventTypes.ITEM_REMOVED_FROM_ORDER));
 
-            log.info("[REMOVE_ITEM][EVENT][SUCCESS][CORRELATION_ID: {}] Event 'ItemRemovedFromOrder' saved", correlationId);
+            LoggingUtil.logPerformance("REMOVE_ITEM", correlationIdStr, startTime);
 
         } catch (IllegalStateException e) {
-            log.warn("[REMOVE_ITEM][ERROR][CORRELATION_ID: {}] {} Cannot remove items from an order that is already confirmed or canceled", correlationId, e.getMessage(), e);
+            LoggingUtil.logBusinessValidation("REMOVE_ITEM", correlationIdStr, "Cannot remove items from confirmed/canceled order");
             throw e;
         } catch (IllegalArgumentException | ItemNotFoundException | ItemNotInOrderException e) {
-            log.warn("[REMOVE_ITEM][NOT_FOUND][CORRELATION_ID: {}] {}", correlationId, e.getMessage(), e);
+            LoggingUtil.logOperationError("REMOVE_ITEM", correlationIdStr, e.getMessage(), e);
             throw e;
         } catch (Exception e) {
-            log.error("[REMOVE_ITEM][ERROR][CORRELATION_ID: {}] Error removing item. Cause: {}", correlationId, e.getMessage(), e);
+            LoggingUtil.logOperationError("REMOVE_ITEM", correlationIdStr, "Error removing item", e);
             throw new RemoveItemFromOrderException(correlationId, productId, e);
+        } finally {
+            LoggingUtil.clearContext();
         }
     }
 

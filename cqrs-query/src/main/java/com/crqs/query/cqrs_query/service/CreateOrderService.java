@@ -4,6 +4,7 @@ import com.crqs.query.cqrs_query.domain.document.OrderDocument;
 import com.crqs.query.cqrs_query.domain.dto.events.CreatedOrderEvent;
 import com.crqs.query.cqrs_query.repository.OrderRepository;
 import com.crqs.query.cqrs_query.repository.ProcessedEventsRepository;
+import com.crqs.query.cqrs_query.util.LoggingUtil;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -23,11 +24,13 @@ public class CreateOrderService {
     @Transactional
     public OrderDocument createOrderFromEvent(CreatedOrderEvent event) {
 
+        final String correlationId = event.getCorrelationId();
+        final String eventId = event.getEventId();
+
         OrderDocument document = orderServiceHelper.buildOrderDocument(event);
 
         if (processedEventsRepository.existsById(event.getEventId())) {
-            log.warn("[ORDER_CREATED_EVENT][WARNING] - event already processed. CORRELATION_ID: {} eventId: {}",
-                    event.getCorrelationId(), event.getEventId());
+            LoggingUtil.logEventAlreadyProcessed(ORDER_CREATED.name(), correlationId, eventId);
             return orderRepository.findById(document.getCorrelationId()).orElse(document);
         }
 

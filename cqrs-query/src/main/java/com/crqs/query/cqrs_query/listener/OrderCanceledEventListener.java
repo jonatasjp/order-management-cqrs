@@ -3,6 +3,7 @@ package com.crqs.query.cqrs_query.listener;
 import com.crqs.query.cqrs_query.domain.document.OrderDocument;
 import com.crqs.query.cqrs_query.domain.dto.events.CanceledOrderEvent;
 import com.crqs.query.cqrs_query.service.CanceledOrderService;
+import com.crqs.query.cqrs_query.util.LoggingUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
@@ -22,17 +23,25 @@ public class OrderCanceledEventListener {
 
     @KafkaListener(topics = "${kafka.topics.order-canceled}", groupId = "${spring.kafka.consumer.group-id}")
     public void listenOrderCanceled(String payload, Acknowledgment ack) throws JsonProcessingException {
-        try{
+        long startTime = System.currentTimeMillis();
+        
+        try {
             CanceledOrderEvent event = objectMapper.readValue(payload, CanceledOrderEvent.class);
-            log.debug("[ORDER_CANCELED_EVENT] Recebido: {}", event);
+            String correlationId = event.getCorrelationId();
+            
+            LoggingUtil.logEventReceived("ORDER_CANCELED", correlationId, event);
+
             OrderDocument orderDocument = canceledOrderService.canceledOrderFromEvent(event);
-            log.info("[ORDER_CANCELED_EVENT] Processed: {} OrderCanceled: {}", event, orderDocument);
+            LoggingUtil.logEventProcessed("ORDER_CANCELED", correlationId, orderDocument);
+            LoggingUtil.logPerformance("ORDER_CANCELED_EVENT_PROCESSING", correlationId, startTime);
+            
             ack.acknowledge();
         } catch (Exception e) {
-            log.error("[ORDER_CANCELED_EVENT][ERROR] error to proccess this event {}", payload, e);
+            log.error("[ORDER_CANCELED_EVENT][ERROR] error to process this event {}", payload, e);
             throw e;
+        } finally {
+            LoggingUtil.clearContext();
         }
-
     }
 
 }

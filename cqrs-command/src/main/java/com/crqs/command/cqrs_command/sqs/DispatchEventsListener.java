@@ -5,6 +5,7 @@ import com.crqs.command.cqrs_command.domain.entity.OutboxEvent;
 import com.crqs.command.cqrs_command.domain.enums.EnumEventTypes;
 import com.crqs.command.cqrs_command.domain.enums.OutboxStatus;
 import com.crqs.command.cqrs_command.repository.OutboxEventRepository;
+import com.crqs.command.cqrs_command.util.LoggingUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.awspring.cloud.sqs.annotation.SqsListener;
@@ -28,18 +29,20 @@ public class DispatchEventsListener {
 
     @SqsListener(value = "${queues.outboxDispatchEvents}")
     public void dispatchEventsListener(String outBoxEventId) throws JsonProcessingException {
-
-        log.debug("[START_DISPATCH_EVENT] - Init dispatch events to send events to Kafka");
+        long startTime = System.currentTimeMillis();
+        
+        LoggingUtil.logOperationStart("DISPATCH_EVENT", outBoxEventId, outBoxEventId);
 
         Optional<OutboxEvent> optionalOutboxEvent = outboxEventRepository.findById(Long.parseLong(outBoxEventId));
 
         if (optionalOutboxEvent.isEmpty()) {
-            log.warn("[DISPATCH_EVENT] - OutboxEvent ID {} not found", outBoxEventId);
+            LoggingUtil.logOperationError("DISPATCH_EVENT", outBoxEventId, "OutboxEvent not found", new RuntimeException("OutboxEvent not found"));
             return;
         }
 
         OutboxEvent event = optionalOutboxEvent.get();
         String eventType = event.getEventType();
+        String correlationId = event.getAggregateId().toString();
 
         try {
             EnumEventTypes enumEventType = EnumEventTypes.fromEventType(eventType);
@@ -49,20 +52,23 @@ public class DispatchEventsListener {
 
             String topic = resolveTopic(enumEventType);
 
+            LoggingUtil.logDatabaseOperation("SEND", correlationId, "Kafka", topic);
             kafkaTemplate.send(topic, event.getAggregateId().toString(), payload);
 
             event.setStatus(OutboxStatus.SEND_KAFKA);
             event.setSentAt(LocalDateTime.now());
             outboxEventRepository.save(event);
 
-            log.info("[DISPATCH_SUCCESS] - Event {} dispatched to Kafka topic {}", event.getEventType(), topic);
+            LoggingUtil.logEventDispatched(eventType, correlationId, topic);
+            LoggingUtil.logOperationSuccess("DISPATCH_EVENT", correlationId, "Event dispatched to Kafka");
+            LoggingUtil.logPerformance("DISPATCH_EVENT", correlationId, startTime);
 
         } catch (Exception e) {
-            log.error("[DISPATCH_ERROR] - Failed to dispatch OutboxEvent ID: {}. Cause: {}", outBoxEventId, e.getMessage(), e);
+            LoggingUtil.logOperationError("DISPATCH_EVENT", correlationId, "Failed to dispatch event", e);
             throw e;
+        } finally {
+            LoggingUtil.clearContext();
         }
-
-        log.info("[FINISH_DISPATCH_EVENT] - Done dispatching event ID: {}", outBoxEventId);
     }
 
     private String resolveTopic(EnumEventTypes eventType) {

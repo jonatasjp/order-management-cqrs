@@ -2,21 +2,25 @@ package com.crqs.command.cqrs_command.exceptions.handler;
 
 import com.crqs.command.cqrs_command.exceptions.*;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiErrorResponse> handleIllegalArgument(IllegalArgumentException ex, HttpServletRequest request) {
+        log.warn("[EXCEPTION_HANDLER][ILLEGAL_ARGUMENT] - {} - URI: {}", ex.getMessage(), request.getRequestURI());
         return buildErrorResponse(HttpStatus.BAD_REQUEST, ex.getMessage(), request.getRequestURI());
     }
 
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ApiErrorResponse> handleIllegalState(IllegalStateException ex, HttpServletRequest request) {
+        log.warn("[EXCEPTION_HANDLER][ILLEGAL_STATE] - {} - URI: {}", ex.getMessage(), request.getRequestURI());
         return buildErrorResponse(HttpStatus.CONFLICT, ex.getMessage(), request.getRequestURI());
     }
 
@@ -28,11 +32,13 @@ public class GlobalExceptionHandler {
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .findFirst()
                 .orElse("Validation error");
+        log.warn("[EXCEPTION_HANDLER][VALIDATION_ERROR] - {} - URI: {}", errorMessage, request.getRequestURI());
         return buildErrorResponse(HttpStatus.BAD_REQUEST, errorMessage, request.getRequestURI());
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGeneric(Exception ex, HttpServletRequest request) {
+        log.error("[EXCEPTION_HANDLER][GENERIC_ERROR] - {} - URI: {}", ex.getMessage(), request.getRequestURI(), ex);
         return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error: " + ex.getMessage(), request.getRequestURI());
     }
 
