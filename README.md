@@ -261,7 +261,7 @@ docker-compose up --build
 1. **Suba apenas a infraestrutura:**
    ```bash
    # Comente as linhas dos services cqrs-command e cqrs-query no docker-compose.yml
-   docker-compose up -d kafka mongo postgres localstack
+   docker-compose up -d
    ```
 
 2. **Execute as aplicações via sua IDE:**

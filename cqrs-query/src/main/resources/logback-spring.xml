@@ -1,31 +1,40 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{serviceName}] [%X{correlationId}] %logger{36} - %msg%n"/>
-    
-    <!-- Console Appender -->
+
+    <!-- JSON Encoder Configuration for Console Only -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>${LOG_PATTERN}</pattern>
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <timestamp/>
+                <logLevel/>
+                <loggerName/>
+                <message/>
+                <mdc/>
+                <threadName/>
+                <stackTrace/>
+                <pattern>
+                    <pattern>
+                        {
+                            "service": "CQRS-QUERY",
+                            "host": "${HOSTNAME:-unknown}",
+                            "version": "${spring.application.version:-1.0.0}"
+                        }
+                    </pattern>
+                </pattern>
+            </providers>
         </encoder>
     </appender>
-    
-    <!-- Root Logger -->
+
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
     </root>
-    
-    <!-- Application Loggers -->
-    <logger name="com.crqs.query" level="DEBUG" additivity="false">
-        <appender-ref ref="CONSOLE"/>
-    </logger>
-    
-    <!-- Framework Loggers -->
+
+    <logger name="com.crqs.query" level="INFO"/>
+
     <logger name="org.springframework" level="WARN"/>
     <logger name="org.springframework.data.mongodb" level="WARN"/>
     <logger name="org.apache.kafka" level="WARN"/>
-    
-    <!-- MongoDB Logging (only in development) -->
-    <springProfile name="dev">
-        <logger name="org.springframework.data.mongodb.core.MongoTemplate" level="DEBUG"/>
-    </springProfile>
+
+    <logger name="com.crqs.query.cqrs_query.util.LoggingUtil" level="INFO"/>
+
 </configuration> 
