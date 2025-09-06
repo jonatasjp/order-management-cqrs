@@ -24,7 +24,7 @@ jobs:
 
       # Build cqrs-command
       - name: Build cqrs-command
-        run: mvn -B clean install -DskipTests --file cqrs-command/pom.xml
+        run: mvn -B clean install --file cqrs-command/pom.xml
 
       # Build cqrs-query
       - name: Build cqrs-query
