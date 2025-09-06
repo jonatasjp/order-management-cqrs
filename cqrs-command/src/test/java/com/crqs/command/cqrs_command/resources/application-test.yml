@@ -5,3 +5,19 @@ spring:
     password: test
   flyway:
     enabled: true
+
+# Desabilita AWS LocalStack nos testes
+cloud:
+  aws:
+    endpoint: dummy
+    region:
+      static: us-east-1
+    credentials:
+      accessKey: dummy
+      secretKey: dummy
+    stack:
+      auto: false
+
+# Kafka mockado ou desabilitado
+kafka:
+  bootstrap-servers: dummy:9092
