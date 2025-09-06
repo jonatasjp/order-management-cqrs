@@ -19,5 +19,8 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
         cache: maven
-    - name: Build command with Maven
+    - name: Build cqrs-command
       run: mvn clean install --file cqrs-command/pom.xml
+    
+    - name: Build cqrs-query
+      run: mvn clean install --file cqrs-query/pom.xml
