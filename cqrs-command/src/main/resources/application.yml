@@ -1,5 +1,4 @@
 spring:
-  profiles: dev,prd
   application:
     name: cqrs-command
   datasource:
